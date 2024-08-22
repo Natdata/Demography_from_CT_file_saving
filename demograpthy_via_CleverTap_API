@@ -1,0 +1,188 @@
+import requests
+import json
+import pandas as pd
+import time
+
+# Define headers and other constants
+headers = {
+    'X-CleverTap-Account-Id': 'aaa',
+    'X-CleverTap-Passcode': 'bbb',
+    'Content-Type': 'application/json',
+}
+
+start = 20240701
+end = 20240730
+brands = ['Netto', 'Lewiatan']
+
+# Mapping of brand names to brand IDs
+brand_id_mapping = {
+    'Lidl': 3,
+    'Carrefour': 39,
+    'Carrefour market': 46,
+    'Carrefour Express': 47,
+    'Globi': 53,
+    'Intermarche': 41,
+    'POLOmarket': 9,
+    'Duży Ben': 57,
+    'Społem - Blisko i Korzystnie': 51,
+    'bi1': 42,
+    'Twój market': 40,
+    'Aldi': 4,
+    'Dealz': 63,
+    'Hipper.pl': 71,
+    'Gram Market': 73,
+    'Lewiatan': 26,
+    'Netto': 62,
+    'Emma Market': 81,
+    'Stokrotka': 75,
+    'Jysk': 50,
+    'Delikatesy Centrum': 31,
+    'Torimpex': 86,
+    'Prymus AGD': 85,
+    'Market Point': 88,
+    'Hitpol': 84,
+    'Sklep Polski': 102,
+    'MRÓWKA/MARKA': 102,
+    'Leroy Merlin': 107,
+    'Chata Polska': 120,
+    'Oriflame': 119,
+    'Arhelan': 112,
+    'Pepco': 33,
+    'Drogerie DM': 121,
+    'Empik': 114,
+    'TOPAZ': 55,
+    'Mrówka Lubliniec': 122,
+    'Supeco': 54,
+    'Blu Salony Łazienek': 67,
+    'Kaufland': 28,
+    'Drogerie Natura': 76,
+    'Żabka': 44,
+    'Media Markt': 113,
+    'Drogerie Polskie': 111,
+    'Action': 66,
+    'Empik Foto': 115,
+    'Api Market': 49,
+    'Tedi': 124,
+    'Auchan': 52,
+    'Avon': 127,
+    'Black Red White': 129,
+    'Euro Sklep': 135,
+    'Groszek': 136,
+    'Hebe': 99,
+    'Rossmann': 60,
+    'Woolworth': 132,
+    'Drogerie Koliber': 128,
+    '3W': 139,
+    'Dr.Max Drogerie': 105,
+    'Gemini.pl': 143,
+    'Kamrat': 141,
+    'PSB Mrówka': 142,
+    'Poczta Polska': 147,
+    'Glovo': 146,
+    'Chorten': 144,
+    'Dnipro-M': 149,
+    'Media Star': 150,
+    'Jula': 151,
+    'Douglas': 152,
+    'Delio': 153,
+    'Limonka': 154,
+    'Prymus AGD / Home&Deco': 155,
+    'Super Prezenty': 156
+}
+
+
+age_ranges = [
+    (2000, 2006),  # 18-24
+    (1990, 1999),  # 25-34
+    (1980, 1989),  # 35-44
+    (1970, 1979),  # 45-54
+    (1924, 1969)   # 55-100
+]
+
+genders = ["Male", "Female"]
+
+# Initialize a list to store results
+results = []
+
+for brand in brands:
+    # Initialize result structure for each brand
+    row = {
+        "date": start,
+        "brand_id": brand_id_mapping[brand],
+        "men18to24": 0, "men25to34": 0, "men35to44": 0, "men45to54": 0, "men55": 0,
+        "women18to24": 0, "women25to34": 0, "women35to44": 0, "women45to54": 0, "women55": 0
+    }
+
+    for gender in genders:
+        for age_range in age_ranges:
+            data = {
+                "event_name": "leaflet_enter",
+                "event_properties": [{"name": "brand_name", "operator": "equals", "value": brand}],
+                "common_profile_properties": {
+                    "profile_fields": [
+                        {
+                            "name": "user_birthdate",
+                            "operator": "between",
+                            "value": age_range
+                        }
+                    ],
+                    "demographics": [
+                        {
+                            "name": "Gender",
+                            "value": gender
+                        }
+                    ]
+                },
+                "from": start,
+                "to": end
+            }
+
+            json_data = json.dumps(data)
+
+            response = requests.post('https://eu1.api.clevertap.com/1/counts/events.json', headers=headers, data=json_data)
+            response_json = response.json()
+
+            req_id = response_json['req_id']
+
+            time.sleep(5)
+
+            response1 = requests.get(f'https://eu1.api.clevertap.com/1/counts/events.json?req_id={req_id}', headers=headers)
+            response1_json = response1.json()
+
+            count = response1_json.get("count", 0)
+
+            if gender == "Male":
+                if age_range == (2000, 2006):
+                    row["men18to24"] += count
+                elif age_range == (1990, 1999):
+                    row["men25to34"] += count
+                elif age_range == (1980, 1989):
+                    row["men35to44"] += count
+                elif age_range == (1970, 1979):
+                    row["men45to54"] += count
+                elif age_range == (1924, 1969):
+                    row["men55"] += count
+            elif gender == "Female":
+                if age_range == (2000, 2006):
+                    row["women18to24"] += count
+                elif age_range == (1990, 1999):
+                    row["women25to34"] += count
+                elif age_range == (1980, 1989):
+                    row["women35to44"] += count
+                elif age_range == (1970, 1979):
+                    row["women45to54"] += count
+                elif age_range == (1924, 1969):
+                    row["women55"] += count
+
+    # Append the result for the current brand to the results list
+    results.append(row)
+
+# Convert accumulated results to DataFrame
+df = pd.DataFrame(results)
+
+# Save all results to a single CSV file
+df.to_csv('demografia_plik_do_admina.csv', index=False)
+
+print('Wyniki dla wszystkich brandów:')
+print(df)
+
